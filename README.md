@@ -19,9 +19,9 @@ This script automates the process of disabling cloud-init on Ubuntu servers in a
 ### Running the Script
 You can run the script directly from your terminal using the following one-liner:
 
-    ```
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/balzabu/disable-cloud-init/main/disable-cloud-init.sh)"
-    ```
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/balzabu/disable-cloud-init/main/disable-cloud-init.sh)"
+```
 ### Note
 
 After running the script, a manual reboot may be required to complete the process.
