@@ -13,7 +13,7 @@ This script automates the process of disabling cloud-init on Debian based server
 
 ### Prerequisites
 
-- This script is intended for use on Ubuntu servers.
+- This script is intended for use on debian-based servers.
 - Ensure that you have the necessary privileges to run the script (root access).
 
 ### Running the Script
