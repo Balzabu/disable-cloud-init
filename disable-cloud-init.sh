@@ -43,6 +43,18 @@ if [ "$EUID" -ne 0 ]
 fi
 
 # ==================================================================
+# Check if netplan.io is installed and hold it if so
+# ==================================================================
+NETPLAN_HELD=0
+if dpkg-query -W -f='${Status}' netplan.io 2>/dev/null | grep -q "install ok installed"; then
+  echo -e "${YELLOW}{INFO}${ENDCOLOR} netplan.io is installed, holding the package to prevent it from being removed."
+  sudo apt-mark hold netplan.io
+  NETPLAN_HELD=1
+else
+  echo -e "${YELLOW}{INFO}${ENDCOLOR} netplan.io is not installed, no need to hold the package."
+fi
+
+# ==================================================================
 # Create an empty file to prevent the service from starting
 # ==================================================================
 sudo touch /etc/cloud/cloud-init.disabled
@@ -73,6 +85,14 @@ sudo dpkg-reconfigure -fnoninteractive cloud-init
 # ==================================================================
 sudo apt-get purge cloud-init
 sudo rm -rf /etc/cloud/ && sudo rm -rf /var/lib/cloud/
+
+# ==================================================================
+# Unhold netplan.io if it was held
+# ==================================================================
+if [ $NETPLAN_HELD -eq 1 ]; then
+  echo -e "${YELLOW}{INFO}${ENDCOLOR} Unholding netplan.io package."
+  sudo apt-mark unhold netplan.io
+fi
 
 # ==================================================================
 # Print a message on screen
