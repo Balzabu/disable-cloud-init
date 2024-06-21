@@ -7,7 +7,7 @@
 
 ## Description
 
-This script automates the process of disabling cloud-init on Ubuntu servers in a non-interactive way. It is based on [this gist](https://gist.github.com/zoilomora/f862f76335f5f53644a1b8e55fe98320).
+This script automates the process of disabling cloud-init on Debian based servers in a non-interactive way. It is based on [this gist](https://gist.github.com/zoilomora/f862f76335f5f53644a1b8e55fe98320).
 
 ## Usage
 
