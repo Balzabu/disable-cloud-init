@@ -17,7 +17,12 @@
 #===================================================================
 
 # ==================================================================
-# Useful ANSI codes 
+# Run apt/debconf without any interactive prompt
+# ==================================================================
+export DEBIAN_FRONTEND=noninteractive
+
+# ==================================================================
+# Useful ANSI codes
 # ==================================================================
 RED="\e[31m"
 GREEN="\e[32m"
@@ -36,63 +41,80 @@ echo -e "'-------------------------'\n"
 
 # ==================================================================
 # Check if the script is run as root
+# (the script runs every command as root, so we do not rely on sudo:
+#  on a minimal Debian install sudo may not even be present)
 # ==================================================================
 if [ "$EUID" -ne 0 ]
   then echo -e "${RED}{ERROR}${ENDCOLOR} The script must be ran as root, please try again.\n"
-  exit
+  exit 1
 fi
 
 # ==================================================================
-# Check if netplan.io is installed and hold it if so
+# Detect which cloud-init packages are installed.
+# Since Ubuntu 24.10 the package was split into 'cloud-init' (a thin
+# metapackage) and 'cloud-init-base' (the real implementation), so
+# purging only 'cloud-init' would leave cloud-init working. Debian 13
+# and Ubuntu 24.04 still ship a single 'cloud-init' package.
 # ==================================================================
-NETPLAN_HELD=0
+CI_PKGS=()
+for pkg in cloud-init cloud-init-base; do
+  if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+    CI_PKGS+=("$pkg")
+  fi
+done
+
+if [ ${#CI_PKGS[@]} -eq 0 ]; then
+  echo -e "${YELLOW}{INFO}${ENDCOLOR} cloud-init does not appear to be installed, nothing to do.\n"
+  exit 0
+fi
+echo -e "${YELLOW}{INFO}${ENDCOLOR} Detected cloud-init package(s): ${CI_PKGS[*]}"
+
+# ==================================================================
+# Protect netplan.io from being removed.
+# On Ubuntu, cloud-init(-base) depends on netplan.io; once cloud-init
+# is purged netplan.io is left orphaned and a future 'apt autoremove'
+# would remove it and break networking. Marking it as manually
+# installed prevents that, now and in the future.
+# ==================================================================
 if dpkg-query -W -f='${Status}' netplan.io 2>/dev/null | grep -q "install ok installed"; then
-  echo -e "${YELLOW}{INFO}${ENDCOLOR} netplan.io is installed, holding the package to prevent it from being removed."
-  sudo apt-mark hold netplan.io
-  NETPLAN_HELD=1
+  echo -e "${YELLOW}{INFO}${ENDCOLOR} netplan.io is installed, marking it as manually installed so it survives future 'apt autoremove'."
+  apt-mark manual netplan.io
 else
-  echo -e "${YELLOW}{INFO}${ENDCOLOR} netplan.io is not installed, no need to hold the package."
+  echo -e "${YELLOW}{INFO}${ENDCOLOR} netplan.io is not installed, no need to protect it."
 fi
 
 # ==================================================================
-# Create an empty file to prevent the service from starting
+# Create an empty file to prevent the service from starting.
+# This alone is the officially recommended way to disable cloud-init.
 # ==================================================================
-sudo touch /etc/cloud/cloud-init.disabled
+touch /etc/cloud/cloud-init.disabled
 
 # ==================================================================
-# Create a preseed file that deselects "-" all services expect the
-# 'None' in /tmp
+# Tell debconf to deselect every datasource ("None") so cloud-init is
+# disabled before removal. The datasources question moved from the
+# 'cloud-init' template to 'cloud-init-base' with the package split,
+# so we set both (setting an unused template is harmless).
 # ==================================================================
-echo "cloud-init cloud-init/datasources multiselect None -NoCloud -ConfigDrive -OpenNebula -DigitalOcean -Azure -AltCloud -OVF -MAAS -GCE -OpenStack -CloudSigma -SmartOS -Bigstep -Scaleway -AliYun -Ec2 -CloudStack -Hetzner -IBMCloud -Oracle -Exoscale -RbxCloud -UpCloud -VMware -Vultr -LXD -NWCS -Akamai" > /tmp/cloud-init.preseed
+echo "cloud-init cloud-init/datasources multiselect None" | debconf-set-selections
+echo "cloud-init-base cloud-init-base/datasources multiselect None" | debconf-set-selections
 
 # ==================================================================
-# Load the preseed file from /tmp
+# Clean any existing cloud-init data and logs (if the CLI is present)
 # ==================================================================
-sudo debconf-set-selections /tmp/cloud-init.preseed
-
-# ==================================================================
-# Clean any existing cloud-init data and logs
-# ==================================================================
-sudo cloud-init clean
-
-# ==================================================================
-# Run dpkg-configure in a noninteractive mode
-# ==================================================================
-sudo dpkg-reconfigure -fnoninteractive cloud-init
-
-# ==================================================================
-# Uninstall the package and delete the folders
-# ==================================================================
-sudo apt-get purge cloud-init
-sudo rm -rf /etc/cloud/ && sudo rm -rf /var/lib/cloud/
-
-# ==================================================================
-# Unhold netplan.io if it was held
-# ==================================================================
-if [ $NETPLAN_HELD -eq 1 ]; then
-  echo -e "${YELLOW}{INFO}${ENDCOLOR} Unholding netplan.io package."
-  sudo apt-mark unhold netplan.io
+if command -v cloud-init >/dev/null 2>&1; then
+  cloud-init clean
 fi
+
+# ==================================================================
+# Apply the debconf selections non-interactively
+# ==================================================================
+dpkg-reconfigure -fnoninteractive "${CI_PKGS[@]}"
+
+# ==================================================================
+# Uninstall the package(s) and delete the folders
+# ==================================================================
+apt-get purge -y "${CI_PKGS[@]}"
+rm -rf /etc/cloud/ /var/lib/cloud/
 
 # ==================================================================
 # Print a message on screen

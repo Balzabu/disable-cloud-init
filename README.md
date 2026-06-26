@@ -7,7 +7,16 @@
 
 ## Description
 
-This script automates the process of disabling cloud-init on Debian based servers in a non-interactive way. It is based on [this gist](https://gist.github.com/zoilomora/f862f76335f5f53644a1b8e55fe98320).
+This script automates the process of disabling and removing cloud-init on Debian based servers in a non-interactive way. It is based on [this gist](https://gist.github.com/zoilomora/f862f76335f5f53644a1b8e55fe98320).
+
+It also handles two pitfalls of recent releases:
+
+- On Ubuntu 24.10 and later (including 26.04 LTS) the package was split into `cloud-init` and `cloud-init-base`. The script detects and purges whichever of the two is installed, so cloud-init is actually removed and not just its thin metapackage.
+- On Ubuntu, cloud-init depends on `netplan.io`. The script marks `netplan.io` as manually installed before purging, so a later `apt autoremove` cannot remove it and break networking.
+
+## Compatibility
+
+Tested on Debian 12, Debian 13, Ubuntu 22.04, Ubuntu 24.04, Ubuntu 25.10 and Ubuntu 26.04.
 
 ## Usage
 
@@ -25,6 +34,14 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/balzabu/disable-cloud-in
 ### Note
 
 After running the script, a manual reboot may be required to complete the process.
+
+### Just want to disable, not remove?
+
+If you only need to stop cloud-init from running without uninstalling it, the officially recommended method is to create a single file:
+
+```bash
+sudo touch /etc/cloud/cloud-init.disabled
+```
 
 ## Contributing
 I welcome contributions from the community! If you're interested in helping improve this script, feel free to:
